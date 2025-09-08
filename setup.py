@@ -91,7 +91,7 @@ setup(
     test_suite="testing_neuraxle",
     setup_requires=["pytest-runner"],
     install_requires=[
-        'numpy>=1.16.2',
+        'numpy',
         'scipy>=1.4.1',
         'scikit-learn>=0.24.1',
         'matplotlib>=3.3.4',
