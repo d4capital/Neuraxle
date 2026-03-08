@@ -1,0 +1,90 @@
+name: Publish Neuraxle to CodeArtifact
+
+on:
+  push:
+    tags:
+      - 'neuraxle-v*'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-2
+  CODEARTIFACT_DOMAIN: d4capital
+  CODEARTIFACT_REPO: python-internal
+  CODEARTIFACT_ACCOUNT: '152192834757'
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Parse version from tag
+        id: meta
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#neuraxle-v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "### Publishing neuraxle $VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: pip install --upgrade pip build twine
+
+      - name: Set version in source
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          sed -i "s/__version__.*/__version__ = \"${VERSION}\"/" neuraxle/__init__.py
+          echo "Set version to $VERSION"
+          grep __version__ neuraxle/__init__.py
+
+      - name: Build package
+        run: python -m build
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::152192834757:role/github-codeartifact-publish-dev
+          aws-region: us-east-2
+
+      - name: Get CodeArtifact token
+        id: codeartifact
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain "$CODEARTIFACT_DOMAIN" \
+            --domain-owner "$CODEARTIFACT_ACCOUNT" \
+            --query authorizationToken \
+            --output text)
+          echo "::add-mask::$TOKEN"
+          REPO_URL="https://aws:${TOKEN}@${CODEARTIFACT_DOMAIN}-${CODEARTIFACT_ACCOUNT}.d.codeartifact.${AWS_REGION}.amazonaws.com/pypi/${CODEARTIFACT_REPO}/"
+          echo "::add-mask::$REPO_URL"
+          echo "repo_url=$REPO_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Upload to CodeArtifact
+        run: |
+          twine upload \
+            --repository-url "${{ steps.codeartifact.outputs.repo_url }}" \
+            --username aws \
+            --password "$(aws codeartifact get-authorization-token \
+              --domain "$CODEARTIFACT_DOMAIN" \
+              --domain-owner "$CODEARTIFACT_ACCOUNT" \
+              --query authorizationToken \
+              --output text)" \
+            dist/*
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          echo "| Package | Version | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|---------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| neuraxle | $VERSION | Published |" >> "$GITHUB_STEP_SUMMARY"
