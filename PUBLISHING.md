@@ -34,7 +34,14 @@ The workflow (`.github/workflows/publish-package.yml`) will:
 
 ## Versioning Scheme
 
-- **Release**: `0.9.0`
+Versions follow [Semantic Versioning](https://semver.org/):
+
+- **Major** (`1.0.0`): Breaking changes — any change to existing public interfaces, removed functionality, or incompatible behaviour
+- **Minor** (`0.10.0`): New features — backwards-compatible additions (new functions, optional parameters, etc.)
+- **Patch** (`0.9.1`): Bug fixes — backwards-compatible fixes with no new functionality
+
+Pre-release versions:
+
 - **Alpha**: `0.9.0a1`
 - **Release candidate**: `0.9.0rc1`
 
